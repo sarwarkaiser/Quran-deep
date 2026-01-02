@@ -1,0 +1,29 @@
+{
+    "name": "@rcqi/etl",
+    "version": "1.0.0",
+    "private": true,
+    "scripts": {
+        "run": "tsx src/index.ts",
+        "fetch": "tsx src/fetch-tanzil.ts",
+        "fetch:morphology": "tsx src/fetch-corpus-morphology.ts",
+        "seed": "tsx src/seed.ts",
+        "ingest:morphology": "tsx src/ingest-corpus-morphology.ts"
+    },
+    "dependencies": {
+        "@rcqi/database": "workspace:*",
+        "@rcqi/shared": "workspace:*",
+        "cli-progress": "^3.12.0",
+        "dotenv": "^16.4.5",
+        "node-fetch": "^3.3.2",
+        "xml2js": "^0.6.2",
+        "postgres": "^3.4.3",
+        "drizzle-orm": "^0.29.1"
+    },
+    "devDependencies": {
+        "@types/cli-progress": "^3.11.6",
+        "@types/node": "^20.11.24",
+        "@types/xml2js": "^0.4.14",
+        "tsx": "^4.7.1",
+        "typescript": "^5.3.3"
+    }
+}
