@@ -3,7 +3,7 @@
  */
 
 import { FastifyPluginAsync } from 'fastify';
-import { db, schema } from '@rcqi/database';
+import { supabaseDb as db, supabaseSchema as schema } from '@rcqi/database';
 import { eq, and, desc } from 'drizzle-orm';
 import { RCQIEngine, WordAnalysisData } from '@rcqi/engine';
 

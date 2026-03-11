@@ -1,5 +1,5 @@
 import { FastifyPluginAsync } from 'fastify';
-import { db, schema } from '@rcqi/database';
+import { supabaseDb as db, supabaseSchema as schema } from '@rcqi/database';
 import { eq, asc } from 'drizzle-orm';
 
 const quranRoutes: FastifyPluginAsync = async (app) => {
@@ -27,9 +27,6 @@ const quranRoutes: FastifyPluginAsync = async (app) => {
         const ayahs = await db.query.ayahs.findMany({
             where: eq(schema.ayahs.surahId, surahId),
             orderBy: asc(schema.ayahs.ayahNumber),
-            with: {
-                translations: true, // simplified fetch, in real app allow filtering
-            }
         });
         return ayahs;
     });
