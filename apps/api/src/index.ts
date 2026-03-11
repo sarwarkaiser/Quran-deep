@@ -1,4 +1,5 @@
 import Fastify, { FastifyInstance } from 'fastify';
+import cors from '@fastify/cors';
 import dotenv from 'dotenv';
 import quranRoutes from './routes/quran';
 import rcqiRoutes from './routes/rcqi';
@@ -7,6 +8,13 @@ dotenv.config();
 
 const server: FastifyInstance = Fastify({
   logger: true,
+});
+
+// Register CORS - allow all origins in development
+server.register(cors, {
+  origin: true,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
 });
 
 // Register routes
