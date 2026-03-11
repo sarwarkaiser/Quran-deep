@@ -13,8 +13,7 @@
  */
 
 import * as cliProgress from 'cli-progress';
-import { db } from '@rcqi/database';
-import { ayahs, wordMorphology } from '@rcqi/database';
+import { db, schema } from '@rcqi/database';
 import { eq, and } from 'drizzle-orm';
 import { downloadMorphologyDataset, parseMorphologyDataset, type WordMorphology } from './fetch-corpus-morphology';
 import * as dotenv from 'dotenv';
@@ -52,8 +51,8 @@ function parseArgs(): IngestOptions {
 async function getAyahId(chapter: number, verse: number): Promise<number | null> {
     const ayah = await db.query.ayahs.findFirst({
         where: and(
-            eq(ayahs.surahId, chapter),
-            eq(ayahs.ayahNumber, verse)
+            eq(schema.ayahs.surahId, chapter),
+            eq(schema.ayahs.ayahNumber, verse)
         ),
     });
     return ayah?.id ?? null;
@@ -184,19 +183,19 @@ async function ingestMorphology(options: IngestOptions = {}) {
             // Extract morphological info
             const { root, lemma, partOfSpeech } = extractMorphologicalInfo(word);
             const features = aggregateFeatures(word);
-            const wordArabic = buildWordArabic(word);
+            const token = buildWordArabic(word);
 
-            // Insert into database
-            await db.insert(wordMorphology).values({
+            // Insert into database - using schema matching column names
+            await db.insert(schema.wordMorphology).values({
                 ayahId,
-                wordPosition: word.word,
-                wordArabic,
-                transliteration: null, // Will be populated if available
+                position: word.word,
+                token,
                 root: root || undefined,
-                rootTransliterated: null, // Can be added later
                 lemma: lemma || undefined,
                 partOfSpeech: partOfSpeech || undefined,
+                morphology: JSON.stringify(word.segments), // Store full segments
                 features,
+                source: 'corpus',
             });
 
             insertCount++;
