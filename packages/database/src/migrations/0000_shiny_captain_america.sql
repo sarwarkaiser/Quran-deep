@@ -1,3 +1,15 @@
+DO $$ BEGIN
+ CREATE TYPE "analysis_type" AS ENUM('full_rcqi', 'roots_only', 'semantic_integration', 'thematic', 'cross_reference');
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ CREATE TYPE "confidence_level" AS ENUM('High', 'Medium', 'Low');
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "ayahs" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"surah_id" integer NOT NULL,
@@ -66,6 +78,20 @@ CREATE TABLE IF NOT EXISTS "translators" (
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "word_morphology" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"ayah_id" integer NOT NULL,
+	"word_position" integer NOT NULL,
+	"word_arabic" varchar(255) NOT NULL,
+	"transliteration" varchar(255),
+	"root" varchar(20),
+	"root_transliterated" varchar(30),
+	"lemma" varchar(255),
+	"part_of_speech" varchar(50),
+	"features" jsonb,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "words" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"ayah_id" integer NOT NULL,
@@ -78,14 +104,39 @@ CREATE TABLE IF NOT EXISTS "words" (
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "ayah_embeddings" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"ayah_id" integer NOT NULL,
+	"embedding_model" varchar(50) NOT NULL,
+	"embedding" text NOT NULL,
+	"text_hash" varchar(64),
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "rcqi_analysis_cache" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"ayah_id" integer NOT NULL,
-	"analysis_type" varchar(50) NOT NULL,
-	"analysis_version" varchar(20) NOT NULL,
+	"analysis_type" "analysis_type" DEFAULT 'full_rcqi' NOT NULL,
+	"analysis_version" varchar(20) DEFAULT '1.0.0' NOT NULL,
 	"result" jsonb NOT NULL,
-	"tokens_used" integer DEFAULT 0,
+	"model" varchar(50),
+	"prompt_version" varchar(20),
+	"tokens_used" jsonb,
 	"processing_time" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"expires_at" timestamp,
+	"is_valid" boolean DEFAULT true,
+	"error_count" integer DEFAULT 0,
+	"last_error" text
+);
+--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "root_analysis_cache" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"root" varchar(10) NOT NULL,
+	"analysis_version" varchar(20) DEFAULT '1.0.0' NOT NULL,
+	"result" jsonb NOT NULL,
+	"model" varchar(50),
+	"tokens_used" integer DEFAULT 0,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"expires_at" timestamp
 );
@@ -195,11 +246,20 @@ CREATE INDEX IF NOT EXISTS "surah_revelation_period_idx" ON "surahs" ("revelatio
 CREATE INDEX IF NOT EXISTS "surah_mushaf_order_idx" ON "surahs" ("mushaf_order");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "translation_ayah_translator_idx" ON "translations" ("ayah_id","translator_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "translation_ayah_idx" ON "translations" ("ayah_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "word_morph_ayah_idx" ON "word_morphology" ("ayah_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "word_morph_position_idx" ON "word_morphology" ("ayah_id","word_position");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "word_morph_root_idx" ON "word_morphology" ("root");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "word_morph_pos_idx" ON "word_morphology" ("part_of_speech");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "word_ayah_idx" ON "words" ("ayah_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "word_root_idx" ON "words" ("root_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "word_simplified_idx" ON "words" ("word_simplified");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "embedding_ayah_idx" ON "ayah_embeddings" ("ayah_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "embedding_model_idx" ON "ayah_embeddings" ("embedding_model");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "rcqi_ayah_type_idx" ON "rcqi_analysis_cache" ("ayah_id","analysis_type");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "rcqi_expires_idx" ON "rcqi_analysis_cache" ("expires_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "rcqi_valid_idx" ON "rcqi_analysis_cache" ("is_valid");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "root_analysis_root_idx" ON "root_analysis_cache" ("root");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "root_analysis_expires_idx" ON "root_analysis_cache" ("expires_at");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "semantic_source_idx" ON "semantic_connections" ("source_ayah_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "semantic_target_idx" ON "semantic_connections" ("target_ayah_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "semantic_type_idx" ON "semantic_connections" ("connection_type");--> statement-breakpoint
@@ -238,6 +298,12 @@ EXCEPTION
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
+ ALTER TABLE "word_morphology" ADD CONSTRAINT "word_morphology_ayah_id_ayahs_id_fk" FOREIGN KEY ("ayah_id") REFERENCES "ayahs"("id") ON DELETE no action ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
  ALTER TABLE "words" ADD CONSTRAINT "words_ayah_id_ayahs_id_fk" FOREIGN KEY ("ayah_id") REFERENCES "ayahs"("id") ON DELETE no action ON UPDATE no action;
 EXCEPTION
  WHEN duplicate_object THEN null;
@@ -245,6 +311,12 @@ END $$;
 --> statement-breakpoint
 DO $$ BEGIN
  ALTER TABLE "words" ADD CONSTRAINT "words_root_id_roots_id_fk" FOREIGN KEY ("root_id") REFERENCES "roots"("id") ON DELETE no action ON UPDATE no action;
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
+ ALTER TABLE "ayah_embeddings" ADD CONSTRAINT "ayah_embeddings_ayah_id_ayahs_id_fk" FOREIGN KEY ("ayah_id") REFERENCES "ayahs"("id") ON DELETE no action ON UPDATE no action;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;

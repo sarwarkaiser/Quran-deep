@@ -243,53 +243,6 @@ export const rootAnalysisCache = pgTable(
 );
 
 /**
- * Word-level morphology cache from Quranic Arabic Corpus
- */
-export const wordMorphology = pgTable(
-  'word_morphology',
-  {
-    id: serial('id').primaryKey(),
-    ayahId: integer('ayah_id')
-      .notNull()
-      .references(() => ayahs.id),
-    position: integer('position').notNull(), // word position in ayah (1-indexed)
-
-    token: varchar('token', { length: 100 }).notNull(),
-    transliteration: varchar('transliteration', { length: 100 }),
-    lemma: varchar('lemma', { length: 100 }),
-    root: varchar('root', { length: 10 }),
-
-    partOfSpeech: varchar('part_of_speech', { length: 50 }),
-    morphology: text('morphology'), // Full morphological features
-
-    // Parsed features
-    features: jsonb('features').$type<{
-      person?: string;
-      gender?: string;
-      number?: string;
-      tense?: string;
-      voice?: string;
-      case?: string;
-      definiteness?: string;
-    }>(),
-
-    translation: text('translation'),
-
-    // Source tracking
-    source: varchar('source', { length: 50 }).default('corpus'), // 'corpus' | 'manual' | 'ai'
-    confidence: confidenceEnum('confidence'),
-
-    createdAt: timestamp('created_at').defaultNow().notNull(),
-    updatedAt: timestamp('updated_at').defaultNow().notNull(),
-  },
-  (table) => ({
-    ayahPositionIdx: index('word_morph_ayah_pos_idx').on(table.ayahId, table.position),
-    rootIdx: index('word_morph_root_idx').on(table.root),
-    lemmaIdx: index('word_morph_lemma_idx').on(table.lemma),
-  })
-);
-
-/**
  * Ayah embeddings for semantic search
  */
 export const ayahEmbeddings = pgTable(

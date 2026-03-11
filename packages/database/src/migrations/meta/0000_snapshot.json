@@ -1,5 +1,5 @@
 {
-  "id": "8dd78167-3027-4066-9be0-69962c7d6c00",
+  "id": "1e8b5135-2151-419b-a5cd-eec299cd7a1c",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "5",
   "dialect": "pg",
@@ -480,6 +480,127 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {}
     },
+    "word_morphology": {
+      "name": "word_morphology",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "ayah_id": {
+          "name": "ayah_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "word_position": {
+          "name": "word_position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "word_arabic": {
+          "name": "word_arabic",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "transliteration": {
+          "name": "transliteration",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "root": {
+          "name": "root",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "root_transliterated": {
+          "name": "root_transliterated",
+          "type": "varchar(30)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lemma": {
+          "name": "lemma",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "part_of_speech": {
+          "name": "part_of_speech",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "features": {
+          "name": "features",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "word_morph_ayah_idx": {
+          "name": "word_morph_ayah_idx",
+          "columns": [
+            "ayah_id"
+          ],
+          "isUnique": false
+        },
+        "word_morph_position_idx": {
+          "name": "word_morph_position_idx",
+          "columns": [
+            "ayah_id",
+            "word_position"
+          ],
+          "isUnique": false
+        },
+        "word_morph_root_idx": {
+          "name": "word_morph_root_idx",
+          "columns": [
+            "root"
+          ],
+          "isUnique": false
+        },
+        "word_morph_pos_idx": {
+          "name": "word_morph_pos_idx",
+          "columns": [
+            "part_of_speech"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "word_morphology_ayah_id_ayahs_id_fk": {
+          "name": "word_morphology_ayah_id_ayahs_id_fk",
+          "tableFrom": "word_morphology",
+          "tableTo": "ayahs",
+          "columnsFrom": [
+            "ayah_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
     "words": {
       "name": "words",
       "schema": "",
@@ -594,6 +715,82 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {}
     },
+    "ayah_embeddings": {
+      "name": "ayah_embeddings",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "ayah_id": {
+          "name": "ayah_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "embedding_model": {
+          "name": "embedding_model",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "embedding": {
+          "name": "embedding",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "text_hash": {
+          "name": "text_hash",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "embedding_ayah_idx": {
+          "name": "embedding_ayah_idx",
+          "columns": [
+            "ayah_id"
+          ],
+          "isUnique": false
+        },
+        "embedding_model_idx": {
+          "name": "embedding_model_idx",
+          "columns": [
+            "embedding_model"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "ayah_embeddings_ayah_id_ayahs_id_fk": {
+          "name": "ayah_embeddings_ayah_id_ayahs_id_fk",
+          "tableFrom": "ayah_embeddings",
+          "tableTo": "ayahs",
+          "columnsFrom": [
+            "ayah_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
     "rcqi_analysis_cache": {
       "name": "rcqi_analysis_cache",
       "schema": "",
@@ -612,15 +809,17 @@
         },
         "analysis_type": {
           "name": "analysis_type",
-          "type": "varchar(50)",
+          "type": "analysis_type",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "default": "'full_rcqi'"
         },
         "analysis_version": {
           "name": "analysis_version",
           "type": "varchar(20)",
           "primaryKey": false,
-          "notNull": true
+          "notNull": true,
+          "default": "'1.0.0'"
         },
         "result": {
           "name": "result",
@@ -628,12 +827,23 @@
           "primaryKey": false,
           "notNull": true
         },
+        "model": {
+          "name": "model",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "prompt_version": {
+          "name": "prompt_version",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": false
+        },
         "tokens_used": {
           "name": "tokens_used",
-          "type": "integer",
+          "type": "jsonb",
           "primaryKey": false,
-          "notNull": false,
-          "default": 0
+          "notNull": false
         },
         "processing_time": {
           "name": "processing_time",
@@ -653,6 +863,26 @@
           "type": "timestamp",
           "primaryKey": false,
           "notNull": false
+        },
+        "is_valid": {
+          "name": "is_valid",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": true
+        },
+        "error_count": {
+          "name": "error_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "last_error": {
+          "name": "last_error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -668,6 +898,13 @@
           "name": "rcqi_expires_idx",
           "columns": [
             "expires_at"
+          ],
+          "isUnique": false
+        },
+        "rcqi_valid_idx": {
+          "name": "rcqi_valid_idx",
+          "columns": [
+            "is_valid"
           ],
           "isUnique": false
         }
@@ -687,6 +924,82 @@
           "onUpdate": "no action"
         }
       },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
+    "root_analysis_cache": {
+      "name": "root_analysis_cache",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "root": {
+          "name": "root",
+          "type": "varchar(10)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "analysis_version": {
+          "name": "analysis_version",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'1.0.0'"
+        },
+        "result": {
+          "name": "result",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "model": {
+          "name": "model",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tokens_used": {
+          "name": "tokens_used",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "root_analysis_root_idx": {
+          "name": "root_analysis_root_idx",
+          "columns": [
+            "root"
+          ],
+          "isUnique": false
+        },
+        "root_analysis_expires_idx": {
+          "name": "root_analysis_expires_idx",
+          "columns": [
+            "expires_at"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {}
     },
@@ -1553,7 +1866,26 @@
       }
     }
   },
-  "enums": {},
+  "enums": {
+    "analysis_type": {
+      "name": "analysis_type",
+      "values": {
+        "full_rcqi": "full_rcqi",
+        "roots_only": "roots_only",
+        "semantic_integration": "semantic_integration",
+        "thematic": "thematic",
+        "cross_reference": "cross_reference"
+      }
+    },
+    "confidence_level": {
+      "name": "confidence_level",
+      "values": {
+        "High": "High",
+        "Medium": "Medium",
+        "Low": "Low"
+      }
+    }
+  },
   "schemas": {},
   "_meta": {
     "columns": {},

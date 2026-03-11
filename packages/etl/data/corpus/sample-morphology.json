@@ -1,0 +1,14 @@
+{
+  "1:1": [
+    {"token": "بِسْمِ", "lemma": "سَمْو", "root": "س م و", "pos": "N", "position": 1},
+    {"token": "ٱللَّهِ", "lemma": "ٱللَّٰه", "root": "أ ل ه", "pos": "PN", "position": 2},
+    {"token": "ٱلرَّحْمَٰنِ", "lemma": "رَحْمَٰن", "root": "ر ح م", "pos": "N", "position": 3},
+    {"token": "ٱلرَّحِيمِ", "lemma": "رَحِيم", "root": "ر ح م", "pos": "N", "position": 4}
+  ],
+  "1:2": [
+    {"token": "ٱلْحَمْدُ", "lemma": "حَمْد", "root": "ح م د", "pos": "N", "position": 1},
+    {"token": "لِلَّهِ", "lemma": "ٱللَّٰه", "root": "أ ل ه", "pos": "PN", "position": 2},
+    {"token": "رَبِّ", "lemma": "رَبّ", "root": "ر ب ب", "pos": "N", "position": 3},
+    {"token": "ٱلْعَالَمِينَ", "lemma": "عَالَم", "root": "ع ل م", "pos": "N", "position": 4}
+  ]
+}
