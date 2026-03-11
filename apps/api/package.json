@@ -9,17 +9,18 @@
         "lint": "eslint ."
     },
     "dependencies": {
-        "fastify": "^4.26.1",
         "@rcqi/database": "workspace:*",
+        "@rcqi/engine": "workspace:^",
         "@rcqi/shared": "workspace:*",
+        "dotenv": "^16.4.5",
         "drizzle-orm": "^0.29.1",
-        "zod": "^3.22.4",
-        "dotenv": "^16.4.5"
+        "fastify": "^4.26.1",
+        "zod": "^3.22.4"
     },
     "devDependencies": {
-        "tsx": "^4.7.1",
-        "typescript": "^5.3.3",
         "@types/node": "^20.11.24",
-        "eslint": "^8.57.0"
+        "eslint": "^8.57.0",
+        "tsx": "^4.7.1",
+        "typescript": "^5.3.3"
     }
 }

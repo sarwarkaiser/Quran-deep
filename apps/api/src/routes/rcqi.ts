@@ -5,7 +5,7 @@
 import { FastifyPluginAsync } from 'fastify';
 import { db, schema } from '@rcqi/database';
 import { eq, and, desc } from 'drizzle-orm';
-import { RCQIEngine, WordAnalysisData } from '@rcqi/rcqi-engine';
+import { RCQIEngine, WordAnalysisData } from '@rcqi/engine';
 
 const rcqiEngine = new RCQIEngine();
 

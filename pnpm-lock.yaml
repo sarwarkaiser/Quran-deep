@@ -29,6 +29,9 @@ importers:
       '@rcqi/database':
         specifier: workspace:*
         version: link:../../packages/database
+      '@rcqi/engine':
+        specifier: workspace:^
+        version: link:../../packages/rcqi-engine
       '@rcqi/shared':
         specifier: workspace:*
         version: link:../../packages/shared
