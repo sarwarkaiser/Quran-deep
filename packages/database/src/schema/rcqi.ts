@@ -1,55 +1,311 @@
 /**
- * RCQI schema - AI analysis and semantic connections
+ * RCQI Schema - Root-Centric Qur'an Interpreter Analysis Storage
+ * 
+ * Stores AI-powered root analysis, semantic connections, and related data
  */
 
-import { pgTable, serial, integer, varchar, text, decimal, boolean, timestamp, jsonb, index } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  serial,
+  integer,
+  varchar,
+  text,
+  decimal,
+  boolean,
+  timestamp,
+  jsonb,
+  index,
+  pgEnum,
+} from 'drizzle-orm/pg-core';
 import { ayahs } from './quran';
 
-export const rcqiAnalysisCache = pgTable('rcqi_analysis_cache', {
+// Enums
+export const analysisTypeEnum = pgEnum('analysis_type', [
+  'full_rcqi',
+  'roots_only',
+  'semantic_integration',
+  'thematic',
+  'cross_reference',
+]);
+
+export const confidenceEnum = pgEnum('confidence_level', ['High', 'Medium', 'Low']);
+
+/**
+ * RCQI Analysis Cache - Stores complete RCQI analysis results
+ */
+export const rcqiAnalysisCache = pgTable(
+  'rcqi_analysis_cache',
+  {
     id: serial('id').primaryKey(),
-    ayahId: integer('ayah_id').notNull().references(() => ayahs.id),
-    analysisType: varchar('analysis_type', { length: 50 }).notNull(), // 'root' | 'semantic' | 'thematic' | 'cross_reference'
-    analysisVersion: varchar('analysis_version', { length: 20 }).notNull(),
+    ayahId: integer('ayah_id')
+      .notNull()
+      .references(() => ayahs.id),
+    analysisType: analysisTypeEnum('analysis_type').notNull().default('full_rcqi'),
+    analysisVersion: varchar('analysis_version', { length: 20 }).notNull().default('1.0.0'),
+
+    // Full Analysis Data
     result: jsonb('result').$type<{
-        roots?: Array<{
-            rootId: number;
-            word: string;
-            derivatives: string[];
-            semanticField: string;
-            contextualMeaning: string;
+      // Token Root Cards
+      tokenRootCards: Array<{
+        token: string;
+        transliteration: string;
+        lemma: string;
+        partOfSpeech: string;
+        root: string | null;
+        rootCard: {
+          coreNucleus: string;
+          symbolicMeanings: {
+            primary: string;
+            secondary: string;
+            other: string[];
+          };
+          crossLanguageHints: {
+            hebrew?: string;
+            aramaic?: string;
+            syriac?: string;
+            geez?: string;
+            ugaritic?: string;
+            akkadian?: string;
+          };
+          confidence: 'High' | 'Medium' | 'Low';
+        };
+        possibleMeanings: {
+          primary: string[];
+          secondary: string[];
+          hiddenDeep: string[];
+          derivativeMapping: string;
+        };
+      }>;
+
+      // Whole Ayah Analysis
+      semanticIntegration: string;
+      collisions: Array<{
+        description: string;
+        winner: {
+          meaning: string;
+          reasons: string[];
+        };
+        collidedOptions: Array<{
+          meaning: string;
+          reasons: string[];
         }>;
-        themes?: string[];
-        crossReferences?: number[];
-        linguisticInsights?: string;
-        confidence: number;
+      }>;
+      symbolicParaphrases: string[];
+
+      // Best Meaning Summary
+      bestMeaning: {
+        primary: string;
+        secondary: string;
+        otherPossible: string[];
+        confidence: 'High' | 'Medium' | 'Low';
+      };
+
+      // Modern Language Echoes
+      modernLanguageEchoes: Array<{
+        word: string;
+        language: string;
+        echo: string;
+        type: 'sound' | 'meaning';
+        confidence: 'High' | 'Medium' | 'Low';
+      }>;
+
+      // Original Source Interpretations
+      originalSources: {
+        farahi?: {
+          hasDirectComment: boolean;
+          summary: string;
+          inference?: string;
+          inferenceConfidence?: 'Medium' | 'Low';
+        };
+        raghib?: {
+          hasDirectComment: boolean;
+          summary: string;
+          rootEntries?: string[];
+        };
+        izutsu?: {
+          hasDirectComment: boolean;
+          summary: string;
+          conceptMapping?: string;
+          mappingConfidence?: 'Medium' | 'Low';
+        };
+        asad?: {
+          translation: string;
+          notes?: string;
+        };
+      };
+
+      // Raw output for reference
+      rawOutput?: string;
     }>().notNull(),
-    tokensUsed: integer('tokens_used').default(0),
+
+    // AI Model Info
+    model: varchar('model', { length: 50 }),
+    promptVersion: varchar('prompt_version', { length: 20 }),
+
+    // Usage Metrics
+    tokensUsed: jsonb('tokens_used').$type<{
+      prompt: number;
+      completion: number;
+      total: number;
+    }>(),
     processingTime: integer('processing_time'), // milliseconds
+
+    // Caching
     createdAt: timestamp('created_at').defaultNow().notNull(),
     expiresAt: timestamp('expires_at'),
-}, (table) => ({
+    isValid: boolean('is_valid').default(true),
+
+    // Error handling
+    errorCount: integer('error_count').default(0),
+    lastError: text('last_error'),
+  },
+  (table) => ({
     ayahTypeIdx: index('rcqi_ayah_type_idx').on(table.ayahId, table.analysisType),
     expiresIdx: index('rcqi_expires_idx').on(table.expiresAt),
-}));
+    validIdx: index('rcqi_valid_idx').on(table.isValid),
+  })
+);
 
-export const semanticConnections = pgTable('semantic_connections', {
+/**
+ * Semantic Connections between ayahs
+ */
+export const semanticConnections = pgTable(
+  'semantic_connections',
+  {
     id: serial('id').primaryKey(),
-    sourceAyahId: integer('source_ayah_id').notNull().references(() => ayahs.id),
-    targetAyahId: integer('target_ayah_id').notNull().references(() => ayahs.id),
-    connectionType: varchar('connection_type', { length: 50 }).notNull(), // 'thematic' | 'linguistic' | 'narrative' | 'legal'
+    sourceAyahId: integer('source_ayah_id')
+      .notNull()
+      .references(() => ayahs.id),
+    targetAyahId: integer('target_ayah_id')
+      .notNull()
+      .references(() => ayahs.id),
+    connectionType: varchar('connection_type', { length: 50 }).notNull(), // 'thematic' | 'linguistic' | 'narrative' | 'legal' | 'root-based'
     strength: decimal('strength', { precision: 3, scale: 2 }).notNull(), // 0.00 - 1.00
     description: text('description'),
     autoGenerated: boolean('auto_generated').default(true),
     createdBy: integer('created_by'), // user ID if manually created
     votes: integer('votes').default(0),
     metadata: jsonb('metadata').$type<{
-        sharedRoots?: number[];
-        sharedThemes?: string[];
-        aiConfidence?: number;
+      sharedRoots?: string[];
+      sharedThemes?: string[];
+      aiConfidence?: number;
+      connectionEvidence?: string;
     }>(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (table) => ({
+  },
+  (table) => ({
     sourceIdx: index('semantic_source_idx').on(table.sourceAyahId),
     targetIdx: index('semantic_target_idx').on(table.targetAyahId),
     typeIdx: index('semantic_type_idx').on(table.connectionType),
-}));
+  })
+);
+
+/**
+ * Root Analysis Cache - Separate cache for individual root analyses
+ */
+export const rootAnalysisCache = pgTable(
+  'root_analysis_cache',
+  {
+    id: serial('id').primaryKey(),
+    root: varchar('root', { length: 10 }).notNull(),
+    analysisVersion: varchar('analysis_version', { length: 20 }).notNull().default('1.0.0'),
+
+    result: jsonb('result').$type<{
+      coreNucleus: string;
+      symbolicMeanings: {
+        primary: string;
+        secondary: string;
+        other: string[];
+      };
+      crossLanguageHints: {
+        hebrew?: string;
+        aramaic?: string;
+        syriac?: string;
+        geez?: string;
+        ugaritic?: string;
+        akkadian?: string;
+      };
+      derivativeFamily: string[];
+      quranicOccurrences: number;
+      semanticField: string;
+    }>().notNull(),
+
+    model: varchar('model', { length: 50 }),
+    tokensUsed: integer('tokens_used').default(0),
+
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    expiresAt: timestamp('expires_at'),
+  },
+  (table) => ({
+    rootIdx: index('root_analysis_root_idx').on(table.root),
+    expiresIdx: index('root_analysis_expires_idx').on(table.expiresAt),
+  })
+);
+
+/**
+ * Word-level morphology cache from Quranic Arabic Corpus
+ */
+export const wordMorphology = pgTable(
+  'word_morphology',
+  {
+    id: serial('id').primaryKey(),
+    ayahId: integer('ayah_id')
+      .notNull()
+      .references(() => ayahs.id),
+    position: integer('position').notNull(), // word position in ayah (1-indexed)
+
+    token: varchar('token', { length: 100 }).notNull(),
+    transliteration: varchar('transliteration', { length: 100 }),
+    lemma: varchar('lemma', { length: 100 }),
+    root: varchar('root', { length: 10 }),
+
+    partOfSpeech: varchar('part_of_speech', { length: 50 }),
+    morphology: text('morphology'), // Full morphological features
+
+    // Parsed features
+    features: jsonb('features').$type<{
+      person?: string;
+      gender?: string;
+      number?: string;
+      tense?: string;
+      voice?: string;
+      case?: string;
+      definiteness?: string;
+    }>(),
+
+    translation: text('translation'),
+
+    // Source tracking
+    source: varchar('source', { length: 50 }).default('corpus'), // 'corpus' | 'manual' | 'ai'
+    confidence: confidenceEnum('confidence'),
+
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    ayahPositionIdx: index('word_morph_ayah_pos_idx').on(table.ayahId, table.position),
+    rootIdx: index('word_morph_root_idx').on(table.root),
+    lemmaIdx: index('word_morph_lemma_idx').on(table.lemma),
+  })
+);
+
+/**
+ * Ayah embeddings for semantic search
+ */
+export const ayahEmbeddings = pgTable(
+  'ayah_embeddings',
+  {
+    id: serial('id').primaryKey(),
+    ayahId: integer('ayah_id')
+      .notNull()
+      .references(() => ayahs.id),
+    embeddingModel: varchar('embedding_model', { length: 50 }).notNull(), // e.g., 'text-embedding-3-small'
+    embedding: text('embedding').notNull(), // Stored as JSON array string for pgvector compatibility
+    textHash: varchar('text_hash', { length: 64 }), // For cache invalidation
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    ayahIdx: index('embedding_ayah_idx').on(table.ayahId),
+    modelIdx: index('embedding_model_idx').on(table.embeddingModel),
+  })
+);
