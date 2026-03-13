@@ -16,7 +16,10 @@ import * as path from 'path';
 import fetch from 'node-fetch';
 
 const CORPUS_DATA_DIR = path.join(__dirname, '../data/corpus');
-const MORPHOLOGY_FILE_URL = 'https://corpus.quran.com/download/morphology-0.4.txt';
+const MORPHOLOGY_FILE_URLS = [
+    'https://corpus.quran.com/download/morphology-0.4.txt',
+    'https://raw.githubusercontent.com/bnjasim/quranic-corpus/master/quranic-corpus-morphology-0.4.txt',
+];
 const MORPHOLOGY_FILE_PATH = path.join(CORPUS_DATA_DIR, 'morphology-0.4.txt');
 
 export interface MorphologySegment {
@@ -44,6 +47,16 @@ export interface WordMorphology {
     verse: number;
     word: number;
     segments: MorphologySegment[];
+}
+
+function isMorphologyDatasetContent(content: string): boolean {
+    const trimmed = content.trimStart();
+
+    if (trimmed.startsWith('<!DOCTYPE html') || trimmed.startsWith('<html')) {
+        return false;
+    }
+
+    return /^\(\d+:\d+:\d+:\d+\)\t/m.test(content);
 }
 
 /**
@@ -74,11 +87,33 @@ function parseFeatures(featureString: string): MorphologySegment['features'] {
     for (const part of parts) {
         if (part.includes(':')) {
             const [key, value] = part.split(':');
-            features[key.toLowerCase()] = value;
+            const normalizedKey = key.toLowerCase();
+            if (normalizedKey === 'lem') {
+                features.lemma = value;
+            } else if (normalizedKey === 'root') {
+                features.root = value;
+            } else if (normalizedKey === 'pos') {
+                features.pos = value;
+            } else {
+                features[normalizedKey] = value;
+            }
         } else {
-            // Handle simple tags like "STEM", "PREFIX", "SUFFIX"
             if (part === 'STEM' || part === 'PREFIX' || part === 'SUFFIX') {
                 features.type = part as 'PREFIX' | 'STEM' | 'SUFFIX';
+            } else if (part === 'M' || part === 'F') {
+                features.gender = part as 'M' | 'F';
+            } else if (part === 'S' || part === 'D' || part === 'P') {
+                features.number = part as 'S' | 'D' | 'P';
+            } else if (part === 'NOM' || part === 'ACC' || part === 'GEN') {
+                features.case = part as 'NOM' | 'ACC' | 'GEN';
+            } else if (part === '1' || part === '2' || part === '3') {
+                features.person = part as '1' | '2' | '3';
+            } else if (part === 'IND' || part === 'SUBJ' || part === 'JUS') {
+                features.mood = part as 'IND' | 'SUBJ' | 'JUS';
+            } else if (part === 'ACT' || part === 'PASS') {
+                features.voice = part as 'ACT' | 'PASS';
+            } else if (/^(I|II|III|IV|V|VI|VII|VIII|IX|X|XI|XII)$/.test(part)) {
+                features.form = part;
             } else {
                 features[part.toLowerCase()] = 'true';
             }
@@ -114,36 +149,52 @@ function parseMorphologyLine(line: string): MorphologySegment | null {
  */
 export async function downloadMorphologyDataset(): Promise<void> {
     console.log('Downloading Quranic Arabic Corpus morphology dataset...');
-    console.log(`URL: ${MORPHOLOGY_FILE_URL}`);
 
     // Create data directory if it doesn't exist
     if (!fs.existsSync(CORPUS_DATA_DIR)) {
         fs.mkdirSync(CORPUS_DATA_DIR, { recursive: true });
     }
 
-    // Check if file already exists
     if (fs.existsSync(MORPHOLOGY_FILE_PATH)) {
-        console.log('Morphology dataset already exists. Skipping download.');
-        const stats = fs.statSync(MORPHOLOGY_FILE_PATH);
-        console.log(`File size: ${(stats.size / 1024 / 1024).toFixed(2)} MB`);
-        return;
-    }
-
-    try {
-        const response = await fetch(MORPHOLOGY_FILE_URL);
-        if (!response.ok) {
-            throw new Error(`Failed to download: ${response.statusText}`);
+        const existing = fs.readFileSync(MORPHOLOGY_FILE_PATH, 'utf-8');
+        if (isMorphologyDatasetContent(existing)) {
+            console.log('Morphology dataset already exists. Skipping download.');
+            const stats = fs.statSync(MORPHOLOGY_FILE_PATH);
+            console.log(`File size: ${(stats.size / 1024 / 1024).toFixed(2)} MB`);
+            return;
         }
 
-        const data = await response.text();
-        fs.writeFileSync(MORPHOLOGY_FILE_PATH, data, 'utf-8');
-
-        const stats = fs.statSync(MORPHOLOGY_FILE_PATH);
-        console.log(`✓ Downloaded successfully: ${(stats.size / 1024 / 1024).toFixed(2)} MB`);
-    } catch (error) {
-        console.error('Error downloading morphology dataset:', error);
-        throw error;
+        console.warn('Existing morphology file is invalid. Re-downloading a valid dataset.');
     }
+
+    let lastError: unknown = null;
+
+    for (const url of MORPHOLOGY_FILE_URLS) {
+        try {
+            console.log(`Trying: ${url}`);
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`Failed to download: ${response.status} ${response.statusText}`);
+            }
+
+            const data = await response.text();
+            if (!isMorphologyDatasetContent(data)) {
+                throw new Error('Downloaded file did not contain Quranic morphology TSV data');
+            }
+
+            fs.writeFileSync(MORPHOLOGY_FILE_PATH, data, 'utf-8');
+
+            const stats = fs.statSync(MORPHOLOGY_FILE_PATH);
+            console.log(`✓ Downloaded successfully: ${(stats.size / 1024 / 1024).toFixed(2)} MB`);
+            return;
+        } catch (error) {
+            lastError = error;
+            console.warn(`Failed to download from ${url}:`, error);
+        }
+    }
+
+    console.error('Error downloading morphology dataset:', lastError);
+    throw lastError ?? new Error('Unable to download a valid morphology dataset');
 }
 
 /**
@@ -158,13 +209,20 @@ export function parseMorphologyDataset(): WordMorphology[] {
     }
 
     const content = fs.readFileSync(MORPHOLOGY_FILE_PATH, 'utf-8');
+    if (!isMorphologyDatasetContent(content)) {
+        throw new Error(
+            'Morphology dataset file is invalid. Delete it and rerun the ingestion command to download a valid TSV file.'
+        );
+    }
     const lines = content.split('\n');
 
     // Group segments by word
     const wordMap = new Map<string, MorphologySegment[]>();
 
     for (const line of lines) {
-        if (!line.trim() || line.startsWith('#')) continue; // Skip empty lines and comments
+        if (!line.trim() || line.startsWith('#') || line.startsWith('LOCATION\t')) {
+            continue;
+        }
 
         const segment = parseMorphologyLine(line);
         if (!segment) continue;

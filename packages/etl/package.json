@@ -6,6 +6,7 @@
         "run": "tsx src/index.ts",
         "fetch": "tsx src/fetch-tanzil.ts",
         "fetch:morphology": "tsx src/fetch-corpus-morphology.ts",
+        "db:seed": "tsx src/seed.ts",
         "seed": "tsx src/seed.ts",
         "seed:supabase": "tsx src/seed-supabase.ts",
         "ingest:morphology": "tsx src/ingest-corpus-morphology.ts"

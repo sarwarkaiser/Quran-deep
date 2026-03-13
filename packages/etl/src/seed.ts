@@ -1,9 +1,8 @@
-import { db, schema } from '@rcqi/database';
-import { parseStringPromise } from 'xml2js';
+import { supabaseDb as db, supabaseSchema as schema } from '@rcqi/database';
 import fs from 'fs';
 import path from 'path';
-import { TanzilQuran } from './types';
-import { getSurahMetadata } from './metadata';
+import { surahMetadata } from './surah-metadata';
+import { ingestMorphology } from './ingest-corpus-morphology';
 
 const DATA_DIR = path.join(__dirname, '../data');
 
@@ -25,11 +24,14 @@ async function seed() {
         for (const id of surahIds) {
             const verses = data[id.toString()];
             const count = verses.length;
-            const meta = getSurahMetadata(id); // Use local metadata as JSON lacks it
+            const meta = surahMetadata[id];
+            if (!meta) {
+                throw new Error(`Missing metadata for Surah ${id}`);
+            }
 
             await db.insert(schema.surahs).values({
                 id: id,
-                nameArabic: meta.english, // Placeholder as JSON lacks Arabic name
+                nameArabic: meta.arabic,
                 nameTransliterated: meta.transliteration,
                 nameEnglish: meta.english,
                 ayahCount: count,
@@ -54,6 +56,9 @@ async function seed() {
             await db.insert(schema.ayahs).values(ayahsToInsert.slice(i, i + CHUNK_SIZE)).onConflictDoNothing();
             console.log(`Inserted ayahs ${i} to ${i + CHUNK_SIZE}`);
         }
+
+        console.log('Seeding word morphology...');
+        await ingestMorphology();
 
         console.log('Seeding complete.');
     } catch (error) {

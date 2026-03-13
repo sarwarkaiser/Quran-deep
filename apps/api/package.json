@@ -6,7 +6,8 @@
         "dev": "tsx watch src/index.ts",
         "build": "tsc",
         "start": "node dist/index.js",
-        "lint": "eslint ."
+        "lint": "eslint .",
+        "smoke": "tsc --module commonjs --moduleResolution node --target es2022 --types node --esModuleInterop --skipLibCheck --outDir ./.smoke-dist src/smoke.ts && node ./.smoke-dist/smoke.js"
     },
     "dependencies": {
         "@fastify/cors": "8",

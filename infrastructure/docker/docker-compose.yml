@@ -60,6 +60,7 @@ services:
     container_name: rcqi-api
     environment:
       NODE_ENV: development
+      API_PORT: 3011
       DATABASE_URL: postgresql://rcqi_user:rcqi_password@postgres:5432/rcqi
       REDIS_URL: redis://redis:6379
       MEILISEARCH_URL: http://meilisearch:7700
@@ -67,7 +68,7 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       JWT_SECRET: ${JWT_SECRET:-your-secret-key-change-in-production}
     ports:
-      - "3001:3001"
+      - "3011:3011"
     depends_on:
       postgres:
         condition: service_healthy
@@ -79,7 +80,7 @@ services:
       - ./apps/api:/app/apps/api
       - ./packages:/app/packages
       - /app/node_modules
-    command: pnpm --filter @rcqi/api dev
+    command: pnpm --filter api dev
 
   # Web Application
   web:
@@ -89,9 +90,10 @@ services:
     container_name: rcqi-web
     environment:
       NODE_ENV: development
-      NEXT_PUBLIC_API_URL: http://localhost:3001
+      NEXT_PUBLIC_API_URL: http://localhost:3011
+      PORT: 3010
     ports:
-      - "3000:3000"
+      - "3010:3010"
     depends_on:
       - api
     volumes:

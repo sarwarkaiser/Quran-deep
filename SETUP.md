@@ -83,22 +83,22 @@ pnpm dev
 ```
 
 This starts all apps in parallel:
-- 🌐 Web: http://localhost:3000
-- 🔌 API: http://localhost:3001
-- 📊 API Docs: http://localhost:3001/docs
+- 🌐 Web: http://localhost:3010
+- 🔌 API: http://localhost:3011
+- 📊 API Docs: http://localhost:3011/docs
 
 ### Step 7: Verify Installation
 
 **Test API:**
 ```bash
-curl http://localhost:3001/health
+curl http://localhost:3011/health
 ```
 
 Expected response: `{"status":"ok"}`
 
 **Test Database:**
 ```bash
-curl http://localhost:3001/v1/surahs
+curl http://localhost:3011/v1/surahs
 ```
 
 Should return list of surahs (if seeded).
@@ -188,7 +188,7 @@ pnpm --filter @rcqi/shared build
 
 ```bash
 # Windows: Find and kill process
-netstat -ano | findstr :3000
+netstat -ano | findstr :3010
 taskkill /PID <process_id> /F
 ```
 
@@ -235,7 +235,7 @@ pnpm expo start --clear
 
 ## 📚 Next Steps
 
-1. **Explore the API**: http://localhost:3001/docs
+1. **Explore the API**: http://localhost:3011/docs
 2. **Read the Docs**: See `README.md` for detailed documentation
 3. **View Architecture**: See `ARCHITECTURE.md` for system design
 4. **Check Examples**: See `apps/web/app/` for Next.js examples

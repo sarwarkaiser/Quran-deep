@@ -4,10 +4,13 @@
 
 import { FastifyPluginAsync } from 'fastify';
 import { supabaseDb as db, supabaseSchema as schema } from '@rcqi/database';
-import { eq, and, desc } from 'drizzle-orm';
-import { RCQIEngine, WordAnalysisData } from '@rcqi/engine';
-
-const rcqiEngine = new RCQIEngine();
+import { eq, and, desc, asc } from 'drizzle-orm';
+import {
+  RCQIEngine,
+  WordAnalysisData,
+  RCQI_ANALYSIS_VERSION,
+  RCQI_PROMPT_VERSION,
+} from '@rcqi/engine';
 
 interface AnalyzeRequest {
   Body: {
@@ -30,6 +33,16 @@ interface BatchAnalyzeRequest {
 }
 
 const rcqiRoutes: FastifyPluginAsync = async (app) => {
+  let rcqiEngine: RCQIEngine | null = null;
+
+  const getEngine = () => {
+    if (!rcqiEngine) {
+      rcqiEngine = new RCQIEngine();
+    }
+
+    return rcqiEngine;
+  };
+
   /**
    * POST /v1/rcqi/analyze/:surahNumber/:ayahNumber
    * Perform RCQI analysis on a specific ayah
@@ -62,19 +75,21 @@ const rcqiRoutes: FastifyPluginAsync = async (app) => {
       // Fetch word morphology data
       const wordData = await db.query.wordMorphology.findMany({
         where: eq(schema.wordMorphology.ayahId, ayah.id),
-        orderBy: schema.wordMorphology.position,
+        orderBy: asc(schema.wordMorphology.wordPosition),
       });
 
       // Check cache first
       if (!forceRefresh) {
-        const cached = await db.query.rcqiAnalysisCache.findFirst({
-          where: and(
-            eq(schema.rcqiAnalysisCache.ayahId, ayah.id),
-            eq(schema.rcqiAnalysisCache.analysisType, 'full_rcqi'),
-            eq(schema.rcqiAnalysisCache.isValid, true)
-          ),
-          orderBy: desc(schema.rcqiAnalysisCache.createdAt),
-        });
+          const cached = await db.query.rcqiAnalysisCache.findFirst({
+            where: and(
+              eq(schema.rcqiAnalysisCache.ayahId, ayah.id),
+              eq(schema.rcqiAnalysisCache.analysisType, 'full_rcqi'),
+              eq(schema.rcqiAnalysisCache.isValid, true),
+              eq(schema.rcqiAnalysisCache.analysisVersion, RCQI_ANALYSIS_VERSION),
+              eq(schema.rcqiAnalysisCache.promptVersion, RCQI_PROMPT_VERSION)
+            ),
+            orderBy: desc(schema.rcqiAnalysisCache.createdAt),
+          });
 
         if (cached && cached.expiresAt && new Date(cached.expiresAt) > new Date()) {
           return {
@@ -83,9 +98,11 @@ const rcqiRoutes: FastifyPluginAsync = async (app) => {
             analysis: cached.result,
             metadata: {
               ayahId: `${surahNumber}:${ayahNumber}`,
-              surahName: ayah.surah?.name,
+              surahName: ayah.surah?.nameEnglish,
               generatedAt: cached.createdAt,
               model: cached.model,
+              promptVersion: cached.promptVersion,
+              analysisVersion: cached.analysisVersion,
             },
           };
         }
@@ -93,27 +110,26 @@ const rcqiRoutes: FastifyPluginAsync = async (app) => {
 
       // Prepare word data for RCQI engine
       const wordAnalysisData: WordAnalysisData[] = wordData.map((w) => ({
-        token: w.token,
+        token: w.wordArabic,
         transliteration: w.transliteration || '',
-        lemma: w.lemma || w.token,
+        lemma: w.lemma || w.wordArabic,
         partOfSpeech: w.partOfSpeech || 'unknown',
         root: w.root,
-        morphology: w.morphology || undefined,
-        translation: w.translation || undefined,
-        position: w.position,
+        morphology: w.features ? JSON.stringify(w.features) : undefined,
+        position: w.wordPosition,
       }));
 
       // Perform analysis
       const startTime = Date.now();
-      const result = await rcqiEngine.analyze(
+      const result = await getEngine().analyze(
         {
           surahNumber,
-          surahName: ayah.surah?.name || `Surah ${surahNumber}`,
+          surahName: ayah.surah?.nameEnglish || `Surah ${surahNumber}`,
           ayahNumber,
-          arabicText: ayah.textUthmani || ayah.textIndopak || '',
+          arabicText: ayah.textUthmani || ayah.textArabic,
           wordData: wordAnalysisData,
         },
-        { forceRefresh, model: 'claude-3-5-sonnet-20241022', maxTokens: 8000 }
+        { forceRefresh, model: process.env.LLM_MODEL, maxTokens: 8000 }
       );
 
       const processingTime = Date.now() - startTime;
@@ -129,10 +145,10 @@ const rcqiRoutes: FastifyPluginAsync = async (app) => {
       await db.insert(schema.rcqiAnalysisCache).values({
         ayahId: ayah.id,
         analysisType: 'full_rcqi',
-        analysisVersion: '1.0.0',
-        result: result.analysis,
+        analysisVersion: RCQI_ANALYSIS_VERSION,
+        result: result.analysis as typeof schema.rcqiAnalysisCache.$inferInsert.result,
         model: result.analysis.model,
-        promptVersion: '1.0.0',
+        promptVersion: RCQI_PROMPT_VERSION,
         tokensUsed: result.tokenUsage,
         processingTime,
         expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
@@ -144,10 +160,13 @@ const rcqiRoutes: FastifyPluginAsync = async (app) => {
         analysis: result.analysis,
         metadata: {
           ayahId: `${surahNumber}:${ayahNumber}`,
-          surahName: ayah.surah?.name,
+          surahName: ayah.surah?.nameEnglish,
           generatedAt: result.analysis.generatedAt,
           model: result.analysis.model,
+          promptVersion: RCQI_PROMPT_VERSION,
+          analysisVersion: RCQI_ANALYSIS_VERSION,
           tokenUsage: result.tokenUsage,
+          validation: result.analysis.validation,
           processingTimeMs: processingTime,
         },
       };
@@ -190,7 +209,9 @@ const rcqiRoutes: FastifyPluginAsync = async (app) => {
         const analysis = await db.query.rcqiAnalysisCache.findFirst({
           where: and(
             eq(schema.rcqiAnalysisCache.ayahId, ayah.id),
-            eq(schema.rcqiAnalysisCache.isValid, true)
+            eq(schema.rcqiAnalysisCache.isValid, true),
+            eq(schema.rcqiAnalysisCache.analysisVersion, RCQI_ANALYSIS_VERSION),
+            eq(schema.rcqiAnalysisCache.promptVersion, RCQI_PROMPT_VERSION)
           ),
           orderBy: desc(schema.rcqiAnalysisCache.createdAt),
         });
@@ -207,9 +228,11 @@ const rcqiRoutes: FastifyPluginAsync = async (app) => {
           analysis: analysis.result,
           metadata: {
             ayahId: `${surahNumber}:${ayahNumber}`,
-            surahName: ayah.surah?.name,
+            surahName: ayah.surah?.nameEnglish,
             generatedAt: analysis.createdAt,
             model: analysis.model,
+            promptVersion: analysis.promptVersion,
+            analysisVersion: analysis.analysisVersion,
             tokenUsage: analysis.tokensUsed,
           },
         };
@@ -268,7 +291,9 @@ const rcqiRoutes: FastifyPluginAsync = async (app) => {
           const cached = await db.query.rcqiAnalysisCache.findFirst({
             where: and(
               eq(schema.rcqiAnalysisCache.ayahId, ayah.id),
-              eq(schema.rcqiAnalysisCache.isValid, true)
+              eq(schema.rcqiAnalysisCache.isValid, true),
+              eq(schema.rcqiAnalysisCache.analysisVersion, RCQI_ANALYSIS_VERSION),
+              eq(schema.rcqiAnalysisCache.promptVersion, RCQI_PROMPT_VERSION)
             ),
             orderBy: desc(schema.rcqiAnalysisCache.createdAt),
           });
@@ -280,6 +305,7 @@ const rcqiRoutes: FastifyPluginAsync = async (app) => {
               success: true,
               cached: true,
               ayahId: `${surahNumber}:${ayahNumber}`,
+              surahName: ayah.surah?.nameEnglish,
             });
             continue;
           }
@@ -292,6 +318,7 @@ const rcqiRoutes: FastifyPluginAsync = async (app) => {
           cached: false,
           status: 'queued',
           ayahId: `${surahNumber}:${ayahNumber}`,
+          surahName: ayah.surah?.nameEnglish,
         });
 
         // In production, add to queue for async processing
@@ -388,7 +415,7 @@ const rcqiRoutes: FastifyPluginAsync = async (app) => {
           ayahId: `${surahNumber}:${ayahNumber}`,
           connections: connections.map((c) => ({
             targetAyahId: `${c.targetAyah?.surahId}:${c.targetAyah?.ayahNumber}`,
-            targetAyahText: c.targetAyah?.textUthmani,
+            targetAyahText: c.targetAyah?.textUthmani || c.targetAyah?.textArabic,
             connectionType: c.connectionType,
             strength: parseFloat(c.strength.toString()),
             description: c.description,

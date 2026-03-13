@@ -1,16 +1,13 @@
-# RCQI Platform - Root-Contextual Quranic Intelligence
+# RCQI Platform - Root-Centric Qur'an Interpreter
 
-A modern, multi-platform Quran research platform with AI-powered linguistic analysis, offline-first capabilities, and comprehensive research tools.
+A web-first Quran research prototype with AI-assisted RCQI analysis, Quranic morphology data, and a typed monorepo architecture.
 
 ## 🌟 Features
 
-- **Multi-Platform Support**: Web (Next.js), iOS & Android (React Native/Expo)
-- **Offline-First**: Full offline reading with intelligent sync
-- **AI-Powered Analysis**: Claude-powered root word analysis, semantic search, and thematic connections
+- **Web Reader**: Next.js app for browsing surahs and ayahs
+- **AI-Powered Analysis**: Claude-powered RCQI analysis with caching
 - **Morphological Analysis**: Integration with Quranic Arabic Corpus for detailed word-by-word morphology
-- **Research Tools**: Projects, annotations, citations, and collaborative features
 - **6,236 Ayahs**: Complete Quran with multiple translations
-- **Advanced Search**: Meilisearch-powered typo-tolerant search
 - **Type-Safe**: End-to-end TypeScript with Drizzle ORM
 
 ## 🏗️ Architecture
@@ -19,7 +16,7 @@ A modern, multi-platform Quran research platform with AI-powered linguistic anal
 
 - **Frontend**:
   - Web: Next.js 14 (App Router, React Server Components)
-  - Mobile: React Native with Expo (80%+ code sharing)
+  - Mobile: Planned
   - UI: Tailwind CSS, shadcn/ui, React Native Paper
   - State: Zustand + TanStack Query
 
@@ -68,7 +65,7 @@ rcqi-platform/
 
 1. **Clone the repository**:
    ```bash
-   cd "c:\Users\sarwa\Quran deep\rcqi-platform"
+   cd quran-deep
    ```
 
 2. **Install dependencies**:
@@ -101,21 +98,13 @@ rcqi-platform/
    ```
 
    This starts:
-   - Web app: http://localhost:3000
-   - API server: http://localhost:3001
+   - Web app: http://localhost:3010
+   - API server: http://localhost:3011
    - Meilisearch: http://localhost:7700
 
 ### Mobile Development
 
-```bash
-cd apps/mobile
-pnpm expo start
-```
-
-Then:
-- Press `i` for iOS simulator
-- Press `a` for Android emulator
-- Scan QR code with Expo Go app for physical device
+`apps/mobile` is currently a placeholder and does not contain a runnable Expo app yet.
 
 ## 📦 Packages
 
@@ -150,7 +139,7 @@ const ayah = await db.query.ayahs.findFirst({
 });
 ```
 
-### @rcqi/rcqi-engine
+### @rcqi/engine
 AI-powered analysis engine using Claude API.
 
 **Features**:
@@ -162,7 +151,7 @@ AI-powered analysis engine using Claude API.
 
 **Usage**:
 ```typescript
-import { rcqiEngine } from '@rcqi/rcqi-engine';
+import { rcqiEngine } from '@rcqi/engine';
 
 const analysis = await rcqiEngine.analyze({
   ayahId: '123',
@@ -225,86 +214,41 @@ const analysis = await rcqiEngine.analyze({
 ### REST API
 
 ```
-Base URL: http://localhost:3001/v1
+Base URL: http://localhost:3011/v1
 
 # Quran Content
 GET    /surahs
 GET    /surahs/:id
 GET    /surahs/:id/ayahs
 GET    /ayahs/:surahId/:ayahNumber
+GET    /ayahs/:surahId/:ayahNumber/words
 
 # RCQI Analysis
-POST   /rcqi/analyze
-GET    /rcqi/analysis/:ayahId
+POST   /rcqi/analyze/:surahNumber/:ayahNumber
+GET    /rcqi/analysis/:surahNumber/:ayahNumber
 GET    /rcqi/semantic-search
-
-# Search
-GET    /search?q=mercy&type=translation
-
-# Research
-GET    /projects
-POST   /projects
-GET    /annotations
-POST   /annotations
-
-# User
-POST   /auth/login
-POST   /auth/register
-GET    /bookmarks
-POST   /bookmarks
-```
-
-### GraphQL
-
-```
-Endpoint: http://localhost:3001/graphql
-
-query {
-  ayah(surahId: 1, ayahNumber: 2) {
-    textArabic
-    translations {
-      text
-      translator { name }
-    }
-    rcqiAnalysis(type: ROOT) {
-      roots {
-        word
-        derivatives
-        semanticField
-      }
-    }
-  }
-}
+GET    /rcqi/connections/:surahNumber/:ayahNumber
 ```
 
 ## 🧪 Testing
 
 ```bash
-# Run all tests
-pnpm test
-
-# Run tests for specific package
-pnpm --filter @rcqi/shared test
-
-# Run E2E tests
-pnpm --filter @rcqi/web test:e2e
+# Run type checks and builds
+pnpm --filter @rcqi/shared type-check
+pnpm --filter @rcqi/engine type-check
+pnpm --filter api build
+pnpm --filter @rcqi/web build
 ```
 
 ## 📱 Mobile Features
 
-- **Offline Reading**: Full Quran cached locally (SQLite)
-- **Sync Engine**: Intelligent conflict resolution
-- **Background Sync**: Automatic sync when online
-- **Push Notifications**: Study reminders
-- **OTA Updates**: Instant app updates via Expo
+Planned. The current repository does not yet ship a mobile client implementation.
 
 ## 🔐 Security
 
-- JWT authentication with refresh tokens
-- Row-level security in PostgreSQL
-- Rate limiting (100 req/min free, 1000 req/min pro)
-- API key authentication for programmatic access
-- Encrypted data at rest and in transit
+- Environment-based service configuration
+- Supabase/PostgreSQL support
+- AI analysis caching in PostgreSQL
 
 ## 🚢 Deployment
 
@@ -319,14 +263,6 @@ docker-compose -f docker-compose.prod.yml up -d
 ```bash
 cd apps/web
 vercel deploy --prod
-```
-
-### EAS (Mobile)
-
-```bash
-cd apps/mobile
-eas build --platform all
-eas submit --platform all
 ```
 
 ## 📊 Performance
@@ -359,9 +295,7 @@ MIT License - see LICENSE file for details
 
 ## 📞 Support
 
-- Documentation: [docs.rcqi.app](https://docs.rcqi.app)
-- Issues: [GitHub Issues](https://github.com/rcqi/platform/issues)
-- Email: support@rcqi.app
+- Issues: [GitHub Issues](https://github.com/sarwarkaiser/Quran-deep/issues)
 
 ---
 

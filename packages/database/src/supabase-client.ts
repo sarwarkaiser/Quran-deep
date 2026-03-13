@@ -9,6 +9,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import * as dotenv from 'dotenv';
+import path from 'path';
 
 // Import all schemas
 import * as quranSchema from './schema/quran';
@@ -16,7 +17,7 @@ import * as rcqiSchema from './schema/rcqi';
 import * as usersSchema from './schema/users';
 import * as researchSchema from './schema/research';
 
-dotenv.config({ path: '../../.env' });
+dotenv.config({ path: path.join(__dirname, '../../../.env') });
 
 // Supabase configuration
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -30,6 +31,10 @@ if (!supabaseUrl || !supabaseKey) {
     console.warn('SUPABASE_URL or SUPABASE_ANON_KEY not set. Using fallback DATABASE_URL.');
 }
 
+if (!databaseUrl) {
+    throw new Error('SUPABASE_DATABASE_URL or DATABASE_URL environment variable is not set');
+}
+
 // Create Supabase client for auth and real-time features
 export const supabase: SupabaseClient = createClient(
     supabaseUrl || 'http://localhost:54321',
@@ -37,25 +42,21 @@ export const supabase: SupabaseClient = createClient(
 );
 
 // Create postgres client for Drizzle ORM
-export const client = databaseUrl
-    ? postgres(databaseUrl, {
-        max: 10,
-        idle_timeout: 20,
-        connect_timeout: 10,
-    })
-    : null;
+export const client = postgres(databaseUrl, {
+    max: 10,
+    idle_timeout: 20,
+    connect_timeout: 10,
+});
 
 // Create drizzle instance with all schemas
-export const db = client
-    ? drizzle(client, {
-        schema: {
-            ...quranSchema,
-            ...rcqiSchema,
-            ...usersSchema,
-            ...researchSchema,
-        },
-    })
-    : null;
+export const db = drizzle(client, {
+    schema: {
+        ...quranSchema,
+        ...rcqiSchema,
+        ...usersSchema,
+        ...researchSchema,
+    },
+});
 
 // Export schemas for use in queries
 export const schema = {
@@ -73,10 +74,6 @@ export type Database = typeof db;
  */
 export async function checkConnection(): Promise<boolean> {
     try {
-        if (!client) {
-            console.error('No database client available');
-            return false;
-        }
         await client`SELECT 1`;
         console.log('✅ Database connection successful');
         return true;
@@ -90,8 +87,6 @@ export async function checkConnection(): Promise<boolean> {
  * Helper function to close database connection
  */
 export async function closeConnection(): Promise<void> {
-    if (client) {
-        await client.end();
-        console.log('Database connection closed');
-    }
+    await client.end();
+    console.log('Database connection closed');
 }

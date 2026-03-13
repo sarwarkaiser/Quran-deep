@@ -12,7 +12,7 @@
     "clean": "turbo run clean && rm -rf node_modules",
     "db:generate": "turbo run db:generate",
     "db:migrate": "turbo run db:migrate",
-    "db:seed": "turbo run db:seed",
+    "db:seed": "pnpm --filter @rcqi/etl db:seed",
     "setup": "pnpm install && pnpm db:generate && pnpm db:migrate && pnpm db:seed"
   },
   "devDependencies": {

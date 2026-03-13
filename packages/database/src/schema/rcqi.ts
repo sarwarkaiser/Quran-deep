@@ -17,6 +17,7 @@ import {
   index,
   pgEnum,
 } from 'drizzle-orm/pg-core';
+import { relations } from 'drizzle-orm';
 import { ayahs } from './quran';
 
 // Enums
@@ -262,3 +263,30 @@ export const ayahEmbeddings = pgTable(
     modelIdx: index('embedding_model_idx').on(table.embeddingModel),
   })
 );
+
+export const rcqiAnalysisCacheRelations = relations(rcqiAnalysisCache, ({ one }) => ({
+  ayah: one(ayahs, {
+    fields: [rcqiAnalysisCache.ayahId],
+    references: [ayahs.id],
+  }),
+}));
+
+export const semanticConnectionsRelations = relations(semanticConnections, ({ one }) => ({
+  sourceAyah: one(ayahs, {
+    fields: [semanticConnections.sourceAyahId],
+    references: [ayahs.id],
+    relationName: 'semantic_source_ayah',
+  }),
+  targetAyah: one(ayahs, {
+    fields: [semanticConnections.targetAyahId],
+    references: [ayahs.id],
+    relationName: 'semantic_target_ayah',
+  }),
+}));
+
+export const ayahEmbeddingsRelations = relations(ayahEmbeddings, ({ one }) => ({
+  ayah: one(ayahs, {
+    fields: [ayahEmbeddings.ayahId],
+    references: [ayahs.id],
+  }),
+}));

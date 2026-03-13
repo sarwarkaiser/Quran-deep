@@ -2,6 +2,7 @@
  * Quran schema - Core Quranic text tables
  */
 
+import { relations } from 'drizzle-orm';
 import { pgTable, serial, integer, text, varchar, boolean, timestamp, jsonb, index, uniqueIndex } from 'drizzle-orm/pg-core';
 
 export const surahs = pgTable('surahs', {
@@ -171,4 +172,55 @@ export const wordMorphology = pgTable('word_morphology', {
     positionIdx: index('word_morph_position_idx').on(table.ayahId, table.wordPosition),
     rootIdx: index('word_morph_root_idx').on(table.root),
     posIdx: index('word_morph_pos_idx').on(table.partOfSpeech),
+}));
+
+export const surahsRelations = relations(surahs, ({ many }) => ({
+    ayahs: many(ayahs),
+}));
+
+export const ayahsRelations = relations(ayahs, ({ one, many }) => ({
+    surah: one(surahs, {
+        fields: [ayahs.surahId],
+        references: [surahs.id],
+    }),
+    words: many(words),
+    translations: many(translations),
+    wordMorphology: many(wordMorphology),
+}));
+
+export const wordsRelations = relations(words, ({ one }) => ({
+    ayah: one(ayahs, {
+        fields: [words.ayahId],
+        references: [ayahs.id],
+    }),
+    root: one(roots, {
+        fields: [words.rootId],
+        references: [roots.id],
+    }),
+}));
+
+export const rootsRelations = relations(roots, ({ many }) => ({
+    words: many(words),
+}));
+
+export const translatorsRelations = relations(translators, ({ many }) => ({
+    translations: many(translations),
+}));
+
+export const translationsRelations = relations(translations, ({ one }) => ({
+    ayah: one(ayahs, {
+        fields: [translations.ayahId],
+        references: [ayahs.id],
+    }),
+    translator: one(translators, {
+        fields: [translations.translatorId],
+        references: [translators.id],
+    }),
+}));
+
+export const wordMorphologyRelations = relations(wordMorphology, ({ one }) => ({
+    ayah: one(ayahs, {
+        fields: [wordMorphology.ayahId],
+        references: [ayahs.id],
+    }),
 }));

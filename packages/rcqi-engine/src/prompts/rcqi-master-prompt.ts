@@ -6,6 +6,16 @@
  * Qur'anic ayahs through root-driven semantics and morphology.
  */
 
+export const RCQI_PROMPT_VERSION = '2.1.0';
+export const RCQI_ANALYSIS_VERSION = '2.1.0';
+export const RCQI_REQUIRED_LANGUAGE_ECHOES = [
+  'English',
+  'Bangla',
+  'Urdu',
+  'Chinese',
+  'Spanish',
+] as const;
+
 export const RCQI_MASTER_PROMPT = `You are a Root-Centric Qur'an Interpreter (RCQI).
 
 PRIMARY OBJECTIVE:
@@ -110,59 +120,127 @@ If a root appears more than 100 times in the Qur'an, expand Possible Meanings an
 
 ---
 
-## 4) MANDATORY OUTPUT STRUCTURE
+## 4) MANDATORY OUTPUT FORMAT
 
-After analyzing all tokens, output MUST include these sections in this EXACT order:
+Return ONLY one valid JSON object.
+Do NOT wrap it in markdown fences.
+Do NOT add commentary before or after the JSON.
 
-### 1. Full Ayah
-a) Arabic text
-b) Transliteration
+The JSON object MUST follow this exact shape:
 
-### 2. Token Root Cards
-For every word, provide:
-a) Token (as it appears)
-b) Transliteration
-c) Lemma
-d) Part of speech
-e) Root
-f) Root Card (Core Nucleus, Symbolic Meanings, Cross-language hints, Confidence)
-g) Possible Meanings (Primary, Secondary, Hidden/Deep with derivative mapping)
+{
+  "fullAyah": {
+    "arabicText": "string",
+    "transliteration": "string"
+  },
+  "tokenRootCards": [
+    {
+      "token": "string",
+      "transliteration": "string",
+      "lemma": "string",
+      "partOfSpeech": "string",
+      "root": "string or null",
+      "rootCard": {
+        "coreNucleus": "string",
+        "symbolicMeanings": {
+          "primary": "string",
+          "secondary": "string",
+          "other": ["string", "string"]
+        },
+        "crossLanguageHints": {
+          "hebrew": "string",
+          "aramaic": "string",
+          "syriac": "string",
+          "geez": "string",
+          "ugaritic": "string",
+          "akkadian": "string"
+        },
+        "confidence": "High"
+      },
+      "possibleMeanings": {
+        "primary": ["string"],
+        "secondary": ["string"],
+        "hiddenDeep": ["string"],
+        "derivativeMapping": "string"
+      }
+    }
+  ],
+  "semanticIntegration": "string",
+  "collisions": [
+    {
+      "description": "string",
+      "winner": {
+        "meaning": "string",
+        "reasons": ["string"]
+      },
+      "collidedOptions": [
+        {
+          "meaning": "string",
+          "reasons": ["string"]
+        }
+      ]
+    }
+  ],
+  "symbolicParaphrases": ["string", "string", "string", "string", "string"],
+  "bestMeaning": {
+    "primary": "string",
+    "secondary": "string",
+    "otherPossible": ["string"],
+    "confidence": "High"
+  },
+  "modernLanguageEchoes": [
+    {
+      "word": "string",
+      "language": "English",
+      "echo": "string",
+      "type": "sound",
+      "confidence": "Low"
+    }
+  ],
+  "originalSources": {
+    "farahi": {
+      "hasDirectComment": false,
+      "summary": "string",
+      "inference": "string",
+      "inferenceConfidence": "Low"
+    },
+    "raghib": {
+      "hasDirectComment": true,
+      "summary": "string",
+      "inference": "string",
+      "inferenceConfidence": "Low"
+    },
+    "izutsu": {
+      "hasDirectComment": false,
+      "summary": "string",
+      "inference": "string",
+      "inferenceConfidence": "Medium"
+    },
+    "asad": {
+      "hasDirectComment": true,
+      "summary": "string",
+      "translation": "string",
+      "notes": "string"
+    }
+  }
+}
 
-### 3. Whole Ayah Semantic Integration
-Explain how the root meanings interact to produce the meaning of the entire ayah.
-Include grammatical flow and actor-action-object relations.
-
-### 4. Whole Ayah Collisions
-List conflicts between meaning options across words.
-For each collision, show:
-a) Winner option with reasons
-b) Collided / Possibly Wrong options with reasons
-
-### 5. Whole Ayah Symbolic Paraphrases
-Produce at least 5 distinct one-line paraphrases of the whole ayah.
-Each paraphrase must use different combinations of root meanings.
-
-### 6. Best Whole Ayah Meaning Summary
-a) Primary meaning
-b) Secondary meaning
-c) Other possible meanings
-d) Confidence rating (High/Medium/Low)
-
-### 7. Modern Language Echoes
-Find similarities between key words and modern languages:
-English, Bangla, Urdu, Chinese, Spanish
-These can be sound echoes or meaning echoes.
-Mark weak echoes as Low confidence.
+Rules:
+- "tokenRootCards" must contain one item per token in the input word data, in the same order.
+- Always include arrays, even when they have a single item.
+- Use empty arrays instead of omitting list fields.
+- Use null for unknown roots.
+- Include ALL four original source keys: farahi, raghib, izutsu, asad.
+- Include at least one modernLanguageEchoes entry for each of: English, Bangla, Urdu, Chinese, Spanish.
+- If exact source comments are unavailable, state that explicitly instead of inventing them.
+- If a source has no direct comment, set "hasDirectComment" to false and still provide a summary plus a cautious inference if possible.
+- If you are uncertain, stay conservative rather than inventing specifics.
 
 ---
 
 ## 5) ORIGINAL SOURCE INTERPRETATIONS LAYER (MANDATORY)
 
-After completing the full RCQI output above, include a final section titled exactly:
-
-**Original Source Interpretations**
-
-In this section, provide what is available from the original works of these four authors, without using tafsir narrations:
+In the "originalSources" JSON field, provide what is available from the original works of these four authors, without using tafsir narrations:
 
 **A) al-Farahi**
 Use his writings on Qur'anic coherence and vocabulary where available.
@@ -195,9 +273,7 @@ Provide his translation of the ayah and summarize any note he provides for it if
 
 ## 6) STYLE RULES
 
-- Use structured, academic formatting
-- Tables or JSON-like blocks are welcome
-- Be clear and systematic
+- Be clear, systematic, and concise enough to fit in valid JSON strings
 
 **Absolute Constraints:**
 - No narrations, no asbab, no classical tafsir as evidence
@@ -218,7 +294,10 @@ ARABIC TEXT: {{arabicText}}
 WORD DATA (from Quranic Arabic Corpus):
 {{wordData}}
 
-Begin your RCQI analysis now.`;
+LOCAL SOURCE PACKETS (for "originalSources" only):
+{{sourceContext}}
+
+Return the JSON object now.`;
 
 /**
  * Generates the RCQI prompt with injected ayah data
@@ -229,6 +308,8 @@ export function generateRCQIPrompt(params: {
   ayahNumber: number;
   arabicText: string;
   wordData: WordAnalysisData[];
+  sourceContext?: string;
+  promptSupplement?: string;
 }): string {
   const wordDataFormatted = params.wordData
     .map((w, i) => `
@@ -242,12 +323,23 @@ Word ${i + 1}: ${w.token}
 `)
     .join('\n');
 
-  return RCQI_MASTER_PROMPT
+  const basePrompt = RCQI_MASTER_PROMPT
     .replace('{{surahName}}', params.surahName)
     .replace('{{surahNumber}}', params.surahNumber.toString())
     .replace('{{ayahNumber}}', params.ayahNumber.toString())
     .replace('{{arabicText}}', params.arabicText)
-    .replace('{{wordData}}', wordDataFormatted || 'No pre-processed word data available.');
+    .replace('{{wordData}}', wordDataFormatted || 'No pre-processed word data available.')
+    .replace(
+      '{{sourceContext}}',
+      params.sourceContext?.trim() ||
+        'No local source packets were provided. For every author, state explicitly when no accessible statement is available.'
+    );
+
+  if (!params.promptSupplement?.trim()) {
+    return basePrompt;
+  }
+
+  return `${basePrompt}\n\nAdditional instruction for this run:\n${params.promptSupplement.trim()}`;
 }
 
 /**
@@ -299,6 +391,32 @@ export interface RCQIAnalysis {
     raghib?: AuthorInterpretation;
     izutsu?: AuthorInterpretation;
     asad?: AuthorInterpretation;
+  };
+
+  methodology: {
+    promptVersion: string;
+    analysisVersion: string;
+    wholeAyahPriorityEnforced: boolean;
+    tokenCoverage: {
+      expected: number;
+      actual: number;
+    };
+    sourceGrounding: {
+      totalHits: number;
+      authorsWithHits: number;
+      byAuthor: {
+        farahi: number;
+        raghib: number;
+        izutsu: number;
+        asad: number;
+      };
+      citations: string[];
+    };
+  };
+
+  validation: {
+    valid: boolean;
+    issues: string[];
   };
   
   // Metadata

@@ -3,6 +3,7 @@ import cors from '@fastify/cors';
 import dotenv from 'dotenv';
 import quranRoutes from './routes/quran';
 import rcqiRoutes from './routes/rcqi';
+import debugRoutes from './routes/debug';
 
 dotenv.config();
 
@@ -20,6 +21,7 @@ server.register(cors, {
 // Register routes
 server.register(quranRoutes, { prefix: '/v1' });
 server.register(rcqiRoutes, { prefix: '/v1' });
+server.register(debugRoutes, { prefix: '/v1' });
 
 // Health check
 server.get('/', async (request, reply) => {
@@ -36,13 +38,17 @@ server.get('/', async (request, reply) => {
         semanticSearch: 'GET /v1/rcqi/semantic-search?q=query',
         connections: 'GET /v1/rcqi/connections/:surah/:ayah',
       },
+      debug: {
+        provider: 'GET /v1/debug/provider',
+        llm: 'POST /v1/debug/llm',
+      },
     },
   };
 });
 
 const start = async () => {
   try {
-    const port = parseInt(process.env.API_PORT || '3001');
+    const port = parseInt(process.env.API_PORT || '3011');
     await server.listen({ port, host: '0.0.0.0' });
     server.log.info(`RCQI API server running on port ${port}`);
   } catch (err) {

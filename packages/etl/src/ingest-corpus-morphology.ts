@@ -13,8 +13,8 @@
  */
 
 import * as cliProgress from 'cli-progress';
-import { db, schema } from '@rcqi/database';
-import { eq, and } from 'drizzle-orm';
+import { supabaseDb as db, supabaseSchema as schema } from '@rcqi/database';
+import { eq, and, asc } from 'drizzle-orm';
 import { downloadMorphologyDataset, parseMorphologyDataset, type WordMorphology } from './fetch-corpus-morphology';
 import * as dotenv from 'dotenv';
 
@@ -24,6 +24,14 @@ dotenv.config({ path: '../../.env' });
 interface IngestOptions {
     surah?: number; // Optional: ingest only specific surah
     startFrom?: { chapter: number; verse: number }; // Resume from specific location
+}
+
+interface AyahLookup {
+    id: number;
+    surahId: number;
+    ayahNumber: number;
+    textArabic: string;
+    textUthmani: string | null;
 }
 
 /**
@@ -48,14 +56,76 @@ function parseArgs(): IngestOptions {
 /**
  * Get ayah ID from database for a given chapter:verse reference
  */
-async function getAyahId(chapter: number, verse: number): Promise<number | null> {
-    const ayah = await db.query.ayahs.findFirst({
-        where: and(
-            eq(schema.ayahs.surahId, chapter),
-            eq(schema.ayahs.ayahNumber, verse)
-        ),
-    });
-    return ayah?.id ?? null;
+function makeAyahKey(chapter: number, verse: number): string {
+    return `${chapter}:${verse}`;
+}
+
+function splitAyahWords(text: string): string[] {
+    return text
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean);
+}
+
+function buckwalterToArabic(text: string | null | undefined): string | null {
+    if (!text) {
+        return null;
+    }
+
+    const mapping: Record<string, string> = {
+        "'": 'ء',
+        '|': 'آ',
+        '>': 'أ',
+        '&': 'ؤ',
+        '<': 'إ',
+        '}': 'ئ',
+        'A': 'ا',
+        'b': 'ب',
+        'p': 'ة',
+        't': 'ت',
+        'v': 'ث',
+        'j': 'ج',
+        'H': 'ح',
+        'x': 'خ',
+        'd': 'د',
+        '*': 'ذ',
+        'r': 'ر',
+        'z': 'ز',
+        's': 'س',
+        '$': 'ش',
+        'S': 'ص',
+        'D': 'ض',
+        'T': 'ط',
+        'Z': 'ظ',
+        'E': 'ع',
+        'g': 'غ',
+        '_': 'ـ',
+        'f': 'ف',
+        'q': 'ق',
+        'k': 'ك',
+        'l': 'ل',
+        'm': 'م',
+        'n': 'ن',
+        'h': 'ه',
+        'w': 'و',
+        'Y': 'ى',
+        'y': 'ي',
+        'F': 'ً',
+        'N': 'ٌ',
+        'K': 'ٍ',
+        'a': 'َ',
+        'u': 'ُ',
+        'i': 'ِ',
+        '~': 'ّ',
+        'o': 'ْ',
+        '`': 'ٰ',
+        '{': 'ٱ',
+    };
+
+    return text
+        .split('')
+        .map((char) => mapping[char] ?? (char === '+' ? '' : char))
+        .join('');
 }
 
 /**
@@ -106,12 +176,12 @@ function aggregateFeatures(wordMorph: WordMorphology) {
 
     // Extract common features from segments
     for (const seg of wordMorph.segments) {
-        if (seg.features.gen) allFeatures.gender = seg.features.gen;
-        if (seg.features.num) allFeatures.number = seg.features.num;
+        if (seg.features.gender) allFeatures.gender = seg.features.gender;
+        if (seg.features.number) allFeatures.number = seg.features.number;
         if (seg.features.case) allFeatures.case = seg.features.case;
-        if (seg.features.per) allFeatures.person = seg.features.per;
-        if (seg.features.mod) allFeatures.mood = seg.features.mod;
-        if (seg.features.vox) allFeatures.voice = seg.features.vox;
+        if (seg.features.person) allFeatures.person = seg.features.person;
+        if (seg.features.mood) allFeatures.mood = seg.features.mood;
+        if (seg.features.voice) allFeatures.voice = seg.features.voice;
         if (seg.features.form) allFeatures.verbForm = seg.features.form;
     }
 
@@ -119,16 +189,30 @@ function aggregateFeatures(wordMorph: WordMorphology) {
 }
 
 /**
- * Build full Arabic word from segments
+ * Build full Buckwalter transliteration from segments
  */
-function buildWordArabic(wordMorph: WordMorphology): string {
+function buildWordTransliteration(wordMorph: WordMorphology): string {
     return wordMorph.segments.map(s => s.form).join('');
+}
+
+async function loadAyahMap(surah?: number): Promise<Map<string, AyahLookup>> {
+    const ayahs = await db.query.ayahs.findMany({
+        where: surah ? eq(schema.ayahs.surahId, surah) : undefined,
+        orderBy: [asc(schema.ayahs.surahId), asc(schema.ayahs.ayahNumber)],
+    });
+
+    const ayahMap = new Map<string, AyahLookup>();
+    for (const ayah of ayahs) {
+        ayahMap.set(makeAyahKey(ayah.surahId, ayah.ayahNumber), ayah);
+    }
+
+    return ayahMap;
 }
 
 /**
  * Main ingestion function
  */
-async function ingestMorphology(options: IngestOptions = {}) {
+export async function ingestMorphology(options: IngestOptions = {}) {
     console.log('=== Quranic Arabic Corpus Morphology Ingestion ===\n');
 
     try {
@@ -155,50 +239,83 @@ async function ingestMorphology(options: IngestOptions = {}) {
         }
 
         // Step 4: Ingest with progress bar
+        console.log('Loading ayah index from database...\n');
+        const ayahMap = await loadAyahMap(options.surah);
+
         console.log('Ingesting into database...\n');
         const progressBar = new cliProgress.SingleBar({
-            format: 'Progress |{bar}| {percentage}% | {value}/{total} words | Ayah: {currentAyah}',
+            format: 'Progress |{bar}| {percentage}% | {value}/{total} ayahs | Ayah: {currentAyah}',
             barCompleteChar: '\u2588',
             barIncompleteChar: '\u2591',
             hideCursor: true
         });
 
-        progressBar.start(words.length, 0, { currentAyah: '1:1' });
+        const groupedWords = new Map<string, WordMorphology[]>();
+        for (const word of words) {
+            const key = makeAyahKey(word.chapter, word.verse);
+            const group = groupedWords.get(key);
+            if (group) {
+                group.push(word);
+            } else {
+                groupedWords.set(key, [word]);
+            }
+        }
+
+        const entries = Array.from(groupedWords.entries());
+        progressBar.start(entries.length, 0, { currentAyah: '1:1' });
 
         let insertCount = 0;
         let skipCount = 0;
 
-        for (let i = 0; i < words.length; i++) {
-            const word = words[i];
-            progressBar.update(i + 1, { currentAyah: `${word.chapter}:${word.verse}` });
+        for (let i = 0; i < entries.length; i++) {
+            const [ayahKey, ayahWords] = entries[i];
+            progressBar.update(i + 1, { currentAyah: ayahKey });
 
-            // Get ayah ID from database
-            const ayahId = await getAyahId(word.chapter, word.verse);
-            if (!ayahId) {
-                skipCount++;
-                console.warn(`\nWarning: Ayah not found in database: ${word.chapter}:${word.verse}`);
+            const [chapter, verse] = ayahKey.split(':').map(Number);
+            const ayah = ayahMap.get(ayahKey);
+            if (!ayah) {
+                skipCount += ayahWords.length;
+                console.warn(`\nWarning: Ayah not found in database: ${chapter}:${verse}`);
                 continue;
             }
 
-            // Extract morphological info
-            const { root, lemma, partOfSpeech } = extractMorphologicalInfo(word);
-            const features = aggregateFeatures(word);
-            const token = buildWordArabic(word);
+            const arabicWords = splitAyahWords(ayah.textUthmani || ayah.textArabic);
 
-            // Insert into database - using schema matching column names
-            await db.insert(schema.wordMorphology).values({
-                ayahId,
-                position: word.word,
-                token,
-                root: root || undefined,
-                lemma: lemma || undefined,
-                partOfSpeech: partOfSpeech || undefined,
-                morphology: JSON.stringify(word.segments), // Store full segments
-                features,
-                source: 'corpus',
-            });
+            await db.delete(schema.wordMorphology).where(eq(schema.wordMorphology.ayahId, ayah.id));
 
-            insertCount++;
+            const rows = ayahWords
+                .sort((left, right) => left.word - right.word)
+                .map((word) => {
+                    const { root, lemma, partOfSpeech } = extractMorphologicalInfo(word);
+                    const transliteration = buildWordTransliteration(word);
+                    const rootArabic = buckwalterToArabic(root) || undefined;
+                    const lemmaArabic = buckwalterToArabic(lemma) || undefined;
+                    const fallbackArabic = buckwalterToArabic(transliteration) || transliteration;
+                    const wordArabic = arabicWords[word.word - 1] || fallbackArabic;
+                    const features = {
+                        ...aggregateFeatures(word),
+                        buckwalter: transliteration,
+                        rootBuckwalter: root || undefined,
+                        lemmaBuckwalter: lemma || undefined,
+                    };
+
+                    return {
+                        ayahId: ayah.id,
+                        wordPosition: word.word,
+                        wordArabic,
+                        transliteration,
+                        root: rootArabic,
+                        rootTransliterated: root || undefined,
+                        lemma: lemmaArabic,
+                        partOfSpeech: partOfSpeech || undefined,
+                        features,
+                    };
+                });
+
+            if (rows.length > 0) {
+                await db.insert(schema.wordMorphology).values(rows);
+                insertCount += rows.length;
+            }
         }
 
         progressBar.stop();

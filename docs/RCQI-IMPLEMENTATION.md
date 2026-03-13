@@ -31,8 +31,18 @@ The core engine that:
 - Caches results (30-day TTL)
 - Supports batch processing
 - Tracks token usage
+- Grounds the `Original Source Interpretations` layer against a local source pack before model fallback
 
-### 3. Updated Database Schema (`packages/database/src/schema/rcqi.ts`)
+### 3. Local Source Grounding (`packages/rcqi-engine/src/sources/*`)
+
+A retrieval-backed layer for the differentiating author section:
+
+- `starter-corpus.ts` holds locally indexed Farahi, Raghib, Izutsu, and Asad packets
+- `retriever.ts` matches packets by ayah, root, concept, and global principle
+- The engine injects those packets into the prompt and merges them back into `originalSources`
+- Debug output now exposes source-hit counts and citations so grounded vs fallback output is visible
+
+### 4. Updated Database Schema (`packages/database/src/schema/rcqi.ts`)
 
 New tables for storing RCQI analyses:
 - **`rcqi_analysis_cache`** - Stores complete RCQI analyses
@@ -41,7 +51,7 @@ New tables for storing RCQI analyses:
 - **`word_morphology`** - Word-level data from Quranic Corpus
 - **`ayah_embeddings`** - For semantic search
 
-### 4. API Endpoints (`apps/api/src/routes/rcqi.ts`)
+### 5. API Endpoints (`apps/api/src/routes/rcqi.ts`)
 
 New REST endpoints:
 
@@ -53,7 +63,7 @@ New REST endpoints:
 | `/v1/rcqi/semantic-search?q=` | GET | Semantic search (pending) |
 | `/v1/rcqi/connections/:surah/:ayah` | GET | Get related ayahs |
 
-### 5. Sample Output (`docs/RCQI-SAMPLE-OUTPUT.md`)
+### 6. Sample Output (`docs/RCQI-SAMPLE-OUTPUT.md`)
 
 A complete example showing what the RCQI analysis produces for **Surah Al-Fatiha 1:2**.
 
@@ -117,6 +127,7 @@ quran-deep/
    - al-Raghib al-Isfahani (Mufradat)
    - Toshihiko Izutsu (semantic studies)
    - Muhammad Asad (translation + notes)
+   - Grounded through a local source pack before LLM fallback
 
 ---
 
@@ -149,7 +160,7 @@ pnpm --filter @rcqi/api dev
 
 ```bash
 # Test the RCQI endpoint
-curl -X POST http://localhost:3001/v1/rcqi/analyze/1/2 \
+curl -X POST http://localhost:3011/v1/rcqi/analyze/1/2 \
   -H "Content-Type: application/json" \
   -d '{"forceRefresh": true}'
 ```
@@ -169,7 +180,7 @@ Create a simple Next.js web app that:
 ### Get RCQI Analysis
 
 ```bash
-curl -X POST http://localhost:3001/v1/rcqi/analyze/2/255 \
+curl -X POST http://localhost:3011/v1/rcqi/analyze/2/255 \
   -H "Content-Type: application/json"
 ```
 
@@ -213,8 +224,9 @@ Response:
 4. **Word Morphology**: The system expects word-level data from Quranic Arabic Corpus
    - Currently mocked in sample; needs ETL pipeline to populate
 
-5. **Original Sources**: The "Original Source Interpretations" layer uses AI to reference these scholars
-   - For production, consider pre-indexing key concepts from their works
+5. **Original Sources**: The differentiating author layer is now wired through a local source corpus
+   - `starter-corpus.ts` is only a starter pack, not a complete research corpus
+   - For production, expand it into a larger indexed dataset for Farahi, Raghib, Izutsu, and Asad
 
 ---
 
