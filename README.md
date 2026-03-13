@@ -2,6 +2,8 @@
 
 A web-first Quran research prototype with AI-assisted RCQI analysis, Quranic morphology data, and a typed monorepo architecture.
 
+Planning and current execution status live in `TASKS.md`.
+
 ## 🌟 Features
 
 - **Web Reader**: Next.js app for browsing surahs and ayahs
