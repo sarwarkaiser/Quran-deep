@@ -302,8 +302,8 @@ Format as JSON:
       })),
     });
 
-    const content = message.content[0];
-    if (content.type !== 'text') {
+    const content = message.content.find((c) => c.type === 'text');
+    if (!content || content.type !== 'text') {
       throw new Error('Unexpected response type from Anthropic');
     }
 
